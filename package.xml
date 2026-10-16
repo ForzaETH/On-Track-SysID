@@ -1,21 +1,18 @@
 <?xml version="1.0"?>
-<package format="2">
-  <name>on_track_sys_id</name>
-  <version>0.1.0</version>
-  <description>The on_track_sys_id package</description>
-
-  <maintainer email="odikici@ethz.ch">Onur Dikici</maintainer>
-
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!-- Only lets colcon and rosdep find this plain python package; the library itself does not use ROS. -->
+<package format="3">
+  <name>on_track_sysid</name>
+  <version>2.0.0</version>
+  <description>Lateral tire identification (Pacejka) for scaled racecars: on-track and steady-state methods</description>
+  <maintainer email="edoardo.ghignone@pbl.ee.ethz.ch">ForzaETH</maintainer>
   <license>MIT</license>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <test_depend>python3-pytest</test_depend>
 
-  <depend>roscpp</depend>
-  <depend>std_msgs</depend>
-  <depend>rospy</depend>
-  <depend>nav_msgs</depend>
-  <depend>ackermann_msgs</depend>
-  <depend>rospkg</depend>
-
-  <export>  </export>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>
