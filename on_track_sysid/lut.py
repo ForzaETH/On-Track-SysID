@@ -24,10 +24,19 @@ def generate_lut(vehicle: VehicleParams, tires: PacejkaParams, steers=None, vels
         (len(steers) + 1, len(vels) + 1) table: row 0 holds the velocities, column 0 the
         steering angles, cells the lateral acceleration [m/s^2]. Cells without a steady
         state, or past the first maximum of a velocity column, are NaN.
+
+    Raises:
+        ValueError: if steers are negative or not increasing (the table covers one side;
+            lookups mirror it by sign), or if duration / dt gives fewer than 15 samples,
+            the window of the steady-state check.
     """
     steers = default_steers() if steers is None else np.asarray(steers)
     vels = default_vels() if vels is None else np.asarray(vels)
+    if np.any(steers < 0) or np.any(np.diff(steers) <= 0):
+        raise ValueError("steers must be nonnegative and strictly increasing")
     t = np.arange(0, duration, dt)
+    if len(t) < 15:
+        raise ValueError(f"duration / dt gives {len(t)} samples, the steady-state check needs at least 15")
 
     table = np.full((len(steers) + 1, len(vels) + 1), np.nan)
     table[0, 0] = 0.0

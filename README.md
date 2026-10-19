@@ -13,7 +13,7 @@ This is a plain Python library that identifies the lateral (Pacejka) tire model 
 It offers two methods that share the same vehicle model, Pacejka formula and fitting code:
 
 - **On-track** (`identify_on_track`): from about 30-50 s of normal driving. A small neural network learns the error of a nominal vehicle model. Nominal model plus network then simulate a steady-state steering sweep, and Pacejka coefficients are fit to it. This repeats, with the refit model as the next nominal model, until the model converges.
-- **Steady-state** (`identify_steady_state`): from dedicated quasi steady-state runs (constant speed, slow steering ramp). Lateral forces follow directly from the steady-state assumption. It gives better tire data when there is space for such runs.
+- **Steady-state** (`identify_steady_state`): from dedicated quasi-steady-state runs (constant speed, slow steering ramp). Lateral forces follow directly from the steady-state assumption. It gives better tire data when there is space for such runs.
 
 `generate_lut` turns an identified model into the steering look-up table used by the MAP controller of the [ForzaETH Race Stack](https://github.com/ForzaETH/race_stack), where the ROS 2 nodes and launch files wrapping this library live.
 

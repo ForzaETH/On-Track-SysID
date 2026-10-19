@@ -77,3 +77,12 @@ def test_identify_on_track_improves_model():
     tires = identify_on_track(data, VEHICLE, GUESS, cfg)
     alpha = np.linspace(-0.08, 0.08, 17)
     assert force_error(tires, TIRES, alpha) < force_error(GUESS, TIRES, alpha)
+
+
+def test_lut_rejects_bad_grids():
+    with pytest.raises(ValueError):
+        generate_lut(VEHICLE, TIRES, steers=[-0.1, 0.0, 0.1], vels=[3.0])
+    with pytest.raises(ValueError):
+        generate_lut(VEHICLE, TIRES, steers=[0.2, 0.1], vels=[3.0])
+    with pytest.raises(ValueError):
+        generate_lut(VEHICLE, TIRES, steers=[0.0, 0.1], vels=[3.0], duration=0.1, dt=0.01)

@@ -27,7 +27,7 @@ def identify_steady_state(data, vehicle: VehicleParams, init: PacejkaParams, a_x
                           vy_at_rear_axle: bool = True, min_speed: float = 1.0,
                           outlier_iterations: int = 3, outlier_threshold: float = 20.0,
                           bounds=DEFAULT_BOUNDS, equal_tires: bool = False) -> PacejkaParams:
-    """Identifies Pacejka coefficients from recorded quasi steady-state cornering
+    """Identifies Pacejka coefficients from recorded quasi-steady-state cornering
     (e.g. constant speed with a slow steering ramp).
 
     Args:
@@ -36,7 +36,7 @@ def identify_steady_state(data, vehicle: VehicleParams, init: PacejkaParams, a_x
             the static axle loads are used.
         vy_at_rear_axle: v_y is measured at the rear axle and is moved to the center of gravity.
         outlier_iterations: refits after discarding samples whose force error exceeds
-            outlier_threshold * 2^-i [N] on either axle.
+            outlier_threshold * 2^-(i+1) [N] on either axle, for refit i = 0..outlier_iterations-1.
     """
     data = np.asarray(data, dtype=float)
     keep = data[:, V_X] > min_speed
