@@ -26,7 +26,7 @@ pip install .            # steady-state identification and LUT generation (numpy
 pip install .[on_track]  # adds torch for on-track identification
 ```
 
-In a colcon workspace the package builds like any other; `package.xml` only exists so that colcon and rosdep can find it.
+The ForzaETH Race Stack installs it the same way, with `pip install .[on_track]`.
 
 ## Usage
 
