@@ -4,6 +4,7 @@ import pytest
 from on_track_sysid import (OnTrackConfig, PacejkaParams, VehicleParams, fit_pacejka, generate_lut,
                             identify_on_track, identify_steady_state, lateral_dynamics, pacejka_formula)
 from on_track_sysid.pacejka import axle_loads
+from on_track_sysid.preprocess import estimate_offsets, split_segments
 
 # NUC6 on the dubi floor
 VEHICLE = VehicleParams(m=3.39, Iz=0.05797, lf=0.168, lr=0.167, h_cg=0.014)
@@ -27,8 +28,31 @@ def test_friction_coeff_scales_force():
 def test_fit_pacejka_recovers_coefficients():
     alpha = np.linspace(-0.5, 0.5, 201)
     true = (7.0, 1.5, 1.2, 0.4)  # well inside the bounds; the NUC6 fit sits on them
-    coeffs = fit_pacejka(alpha, 15.0, pacejka_formula(true, alpha, 15.0), GUESS.rear)
+    coeffs = fit_pacejka(alpha, 15.0, pacejka_formula(true, alpha, 15.0), GUESS.rear, fit_mask=(True,) * 4)
     np.testing.assert_allclose(coeffs, true, rtol=1e-3)
+
+
+def test_fit_pacejka_keeps_unfitted_coefficients():
+    alpha = np.linspace(-0.5, 0.5, 201)
+    coeffs = fit_pacejka(alpha, 15.0, pacejka_formula((7.0, 1.5, 1.2, 0.4), alpha, 15.0), GUESS.rear)
+    assert coeffs[3] == pytest.approx(GUESS.Er)  # E is not fitted by default
+
+
+def test_estimate_offsets():
+    rng = np.random.default_rng(0)
+    v_x = rng.uniform(1.5, 5.0, 2000)
+    delta = rng.uniform(-0.08, 0.08, 2000)
+    omega = 3.0 * v_x * (delta - 0.02) + 0.05 + rng.normal(0.0, 0.01, 2000)
+    data = np.stack((v_x, np.zeros_like(v_x), omega, delta), axis=1)
+    np.testing.assert_allclose(estimate_offsets(data), (0.02, 0.05), atol=2e-3)
+
+
+def test_split_segments():
+    data = np.arange(10.0)[:, None]
+    starts = np.zeros(10, dtype=bool)
+    starts[[0, 3, 4]] = True
+    segments = split_segments(data, starts, min_len=2)
+    assert [s[:, 0].tolist() for s in segments] == [[0, 1, 2], [4, 5, 6, 7, 8, 9]]
 
 
 def steering_ramp(v_x=3.0, n=3000, dt=0.02, max_steer=0.3):

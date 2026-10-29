@@ -51,6 +51,10 @@ Conventions:
 - The Pacejka force is `F_y = mu * F_z * D * sin(C * atan(B * alpha - E * (B * alpha - atan(B * alpha))))`, with `mu = friction_coeff` (nominally 1.0).
 - `v_y` is expected at the rear axle and moved to the center of gravity (`vy_at_rear_axle=True`); pass `False` when it is already at the center of gravity, e.g. in simulation.
 - On-track data only counts samples above 1 m/s; collect it accordingly.
+- Data with jumps in time (e.g. samples below 1 m/s skipped) passes `segment_starts` to `identify_on_track`, so filtering and one-step residuals stay within contiguous segments.
+- Steering and yaw-rate offsets are estimated from low-steering driving and removed before fitting (`remove_offsets`).
+- `E` is not fitted by default (`DEFAULT_FIT_MASK`) and keeps the initial value: it only shapes the sliding region, which normal driving does not reach. Bounds follow Goblirsch et al. (IV 2025): `C >= 1`, `E <= 1`.
+- Steady-state identification drops transient samples above `max_yaw_acc` (5 rad/s^2) and slip angles above `max_slip` (0.3 rad).
 
 ## Files
 

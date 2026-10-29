@@ -4,8 +4,9 @@ from typing import Callable, Optional
 import numpy as np
 
 from on_track_sysid.dynamics import lateral_dynamics
-from on_track_sysid.pacejka import DEFAULT_BOUNDS, steady_state_forces
-from on_track_sysid.preprocess import DELTA, OMEGA, V_X, V_Y, filter_data, mirror_data
+from on_track_sysid.pacejka import DEFAULT_BOUNDS, DEFAULT_FIT_MASK, steady_state_forces
+from on_track_sysid.preprocess import (DELTA, OMEGA, V_X, V_Y, estimate_offsets, filter_data, mirror_data,
+                                       split_segments)
 from on_track_sysid.steady_state import fit_axles
 from on_track_sysid.types import PacejkaParams, VehicleParams
 
@@ -26,6 +27,11 @@ class OnTrackConfig:
     """The sweep runs at the mean data speed, clipped to these bounds [m/s]"""
     equal_tires: bool = False
     bounds: tuple = DEFAULT_BOUNDS
+    fit_mask: tuple = DEFAULT_FIT_MASK
+    remove_offsets: bool = True
+    """Estimate and remove steering and yaw-rate offsets before training"""
+    min_segment_len: int = 25
+    """Shorter time-contiguous segments of the data are dropped [samples]"""
     seed: Optional[int] = None
 
 
@@ -69,7 +75,8 @@ def _simulate_sweep(nn_model, vehicle, tires, v_x, cfg):
 
 
 def identify_on_track(data, vehicle: VehicleParams, init: PacejkaParams, cfg: OnTrackConfig = OnTrackConfig(),
-                      callback: Optional[Callable[[int, PacejkaParams, tuple], None]] = None) -> PacejkaParams:
+                      callback: Optional[Callable[[int, PacejkaParams, tuple], None]] = None,
+                      segment_starts=None, log: Callable[[str], None] = lambda msg: None) -> PacejkaParams:
     """Identifies Pacejka coefficients from normal driving data.
 
     Each iteration trains a small network on the residual of the current nominal model,
@@ -80,18 +87,37 @@ def identify_on_track(data, vehicle: VehicleParams, init: PacejkaParams, cfg: On
         data: (N, 4) array of v_x, v_y, omega, delta sampled every cfg.dt seconds.
         init: initial nominal tire model; its friction_coeff is kept.
         callback: called after each iteration with (iteration, tires, (v_x, v_y, omega, delta) of the sweep).
+        segment_starts: optional (N,) bool, True where the data jumps in time (e.g. after
+            samples below a minimum speed were skipped). Filtering and one-step residuals
+            stay within the time-contiguous segments.
+        log: receives one-line reports on the preprocessing.
     """
     import torch
 
     if cfg.seed is not None:
         torch.manual_seed(cfg.seed)
 
-    data = filter_data(np.array(data, dtype=float), vehicle.lr, cfg.vy_at_rear_axle, cfg.steer_delay_steps)
+    # filtfilt needs more than 12 samples per segment, the steering delay drops steer_delay_steps
+    min_len = max(cfg.min_segment_len, 13 + cfg.steer_delay_steps)
+    segments = [filter_data(s, vehicle.lr, cfg.vy_at_rear_axle, cfg.steer_delay_steps)
+                for s in split_segments(np.array(data, dtype=float), segment_starts, min_len)]
+    if not segments:
+        raise ValueError(f"no time-contiguous segment of at least {min_len} samples in the data")
+    data = np.concatenate(segments)
+    log(f"Using {len(data)} samples in {len(segments)} time-contiguous segment(s)")
+    if cfg.remove_offsets:
+        delta_0, omega_0 = estimate_offsets(data)
+        for s in segments:  # before mirroring, which would turn an offset into two bands
+            s[:, DELTA] -= delta_0
+            s[:, OMEGA] -= omega_0
+            if cfg.vy_at_rear_axle:  # filter_data moved v_y with the biased yaw rate
+                s[:, V_Y] -= vehicle.lr * omega_0
+        log(f"Removed offsets: steering {delta_0:.4f} rad, yaw rate {omega_0:.4f} rad/s")
     sweep_vel = np.clip(np.mean(data[:, V_X]), *cfg.sweep_vel_bounds)
 
     tires = init
     for i in range(1, cfg.num_of_iterations + 1):
-        X, y = _training_set(data, vehicle, tires, cfg.dt)
+        X, y = map(np.concatenate, zip(*(_training_set(s, vehicle, tires, cfg.dt) for s in segments)))
         X = torch.tensor(X, dtype=torch.float32)
         y = torch.tensor(y, dtype=torch.float32)
 
@@ -111,7 +137,7 @@ def identify_on_track(data, vehicle: VehicleParams, init: PacejkaParams, cfg: On
         # drop diverged samples of the sweep
         keep = (np.abs(sweep[OMEGA]) <= 5) & (np.abs(alpha_f) <= 0.5) & (np.abs(alpha_r) <= 0.2)
         tires = fit_axles(tires, alpha_f[keep], alpha_r[keep], F_zf, F_zr, F_yf[keep], F_yr[keep],
-                          cfg.bounds, cfg.equal_tires)
+                          cfg.bounds, cfg.equal_tires, cfg.fit_mask)
         if callback is not None:
             callback(i, tires, sweep)
     return tires
